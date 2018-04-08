@@ -104,7 +104,7 @@ int             pipewrite(struct pipe*, char*, int);
 //PAGEBREAK: 16
 // proc.c
 int             cpuid(void);
-void            exit(void);
+void            exit(int);      // [CS 153] allow process to set exit status
 int             fork(void);
 int             growproc(int);
 int             kill(int);
