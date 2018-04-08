@@ -83,40 +83,45 @@ ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
 # FreeBSD ld wants ``elf_i386_fbsd''
 LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null | head -n 1)
 
-xv6.img: bootblock kernel fs.img
-	dd if=/dev/zero of=xv6.img count=10000
-	dd if=bootblock of=xv6.img conv=notrunc
-	dd if=kernel of=xv6.img seek=1 conv=notrunc
+BINDIR = bin
+LIBDIR = $(BINDIR)/libs
+OBJECTS = $(OBJS:%.o=$(LIBDIR)/%.o)
 
-xv6memfs.img: bootblock kernelmemfs
-	dd if=/dev/zero of=xv6memfs.img count=10000
-	dd if=bootblock of=xv6memfs.img conv=notrunc
-	dd if=kernelmemfs of=xv6memfs.img seek=1 conv=notrunc
+$(BINDIR)/xv6.img: $(LIBDIR)/bootblock $(LIBDIR)/kernel $(BINDIR)/fs.img
+	dd if=/dev/zero of=$(BINDIR)/xv6.img count=10000
+	dd if=$(LIBDIR)/bootblock of=$(BINDIR)/xv6.img conv=notrunc
+	dd if=$(LIBDIR)/kernel of=$(BINDIR)/xv6.img seek=1 conv=notrunc
 
-bootblock: bootasm.S bootmain.c
-	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c bootmain.c
-	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c bootasm.S
-	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o bootblock.o bootasm.o bootmain.o
-	$(OBJDUMP) -S bootblock.o > bootblock.asm
-	$(OBJCOPY) -S -O binary -j .text bootblock.o bootblock
-	./sign.pl bootblock
+$(BINDIR)/xv6memfs.img: $(LIBDIR)/bootblock $(LIBDIR)/kernelmemfs
+	dd if=/dev/zero of=$(BINDIR)/xv6memfs.img count=10000
+	dd if=$(LIBDIR)/bootblock of=$(BINDIR)/xv6memfs.img conv=notrunc
+	dd if=$(LIBDIR)/kernelmemfs of=$(BINDIR)/xv6memfs.img seek=1 conv=notrunc
 
-entryother: entryother.S
-	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c entryother.S
-	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o bootblockother.o entryother.o
-	$(OBJCOPY) -S -O binary -j .text bootblockother.o entryother
-	$(OBJDUMP) -S bootblockother.o > entryother.asm
+$(LIBDIR)/bootblock: bootasm.S bootmain.c
+	mkdir -p $(LIBDIR)
+	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c -o $(LIBDIR)/bootmain.o bootmain.c
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c -o $(LIBDIR)/bootasm.o bootasm.S
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o $(LIBDIR)/bootblock.o $(LIBDIR)/bootasm.o $(LIBDIR)/bootmain.o
+	$(OBJDUMP) -S $(LIBDIR)/bootblock.o > $(LIBDIR)/bootblock.asm
+	$(OBJCOPY) -S -O binary -j .text $(LIBDIR)/bootblock.o $(LIBDIR)/bootblock
+	./sign.pl $(LIBDIR)/bootblock
 
-initcode: initcode.S
-	$(CC) $(CFLAGS) -nostdinc -I. -c initcode.S
-	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o initcode.out initcode.o
-	$(OBJCOPY) -S -O binary initcode.out initcode
-	$(OBJDUMP) -S initcode.o > initcode.asm
+$(LIBDIR)/entryother: entryother.S
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c -o $(LIBDIR)/entryother.o entryother.S
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o $(LIBDIR)/bootblockother.o $(LIBDIR)/entryother.o
+	$(OBJCOPY) -S -O binary -j .text $(LIBDIR)/bootblockother.o $(LIBDIR)/entryother
+	$(OBJDUMP) -S $(LIBDIR)/bootblockother.o > $(LIBDIR)/entryother.asm
 
-kernel: $(OBJS) entry.o entryother initcode kernel.ld
-	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJS) -b binary initcode entryother
-	$(OBJDUMP) -S kernel > kernel.asm
-	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
+$(LIBDIR)/initcode: initcode.S
+	$(CC) $(CFLAGS) -nostdinc -I. -c -o $(LIBDIR)/initcode.o initcode.S
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $(LIBDIR)/initcode.out $(LIBDIR)/initcode.o
+	$(OBJCOPY) -S -O binary $(LIBDIR)/initcode.out $(LIBDIR)/initcode
+	$(OBJDUMP) -S $(LIBDIR)/initcode.o > $(LIBDIR)/initcode.asm
+
+$(LIBDIR)/kernel: $(OBJECTS) $(LIBDIR)/entry.o $(LIBDIR)/entryother $(LIBDIR)/initcode kernel.ld
+	cd $(LIBDIR); $(LD) $(LDFLAGS) -T ../../kernel.ld -o kernel entry.o $(OBJS) -b binary initcode entryother
+	$(OBJDUMP) -S $(LIBDIR)/kernel > $(LIBDIR)/kernel.asm
+	$(OBJDUMP) -t $(LIBDIR)/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(LIBDIR)/kernel.sym
 
 # kernelmemfs is a copy of kernel that maintains the
 # disk image in memory instead of writing to a disk.
@@ -124,39 +129,43 @@ kernel: $(OBJS) entry.o entryother initcode kernel.ld
 # exploring disk buffering implementations, but it is
 # great for testing the kernel on real hardware without
 # needing a scratch disk.
-MEMFSOBJS = $(filter-out ide.o,$(OBJS)) memide.o
-kernelmemfs: $(MEMFSOBJS) entry.o entryother initcode kernel.ld fs.img
-	$(LD) $(LDFLAGS) -T kernel.ld -o kernelmemfs entry.o  $(MEMFSOBJS) -b binary initcode entryother fs.img
-	$(OBJDUMP) -S kernelmemfs > kernelmemfs.asm
-	$(OBJDUMP) -t kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernelmemfs.sym
+MEMFSOBJS = $(filter-out $(LIBDIR)/ide.o,$(OBJECTS)) $(LIBDIR)/memide.o
+$(LIBDIR)/kernelmemfs: $(MEMFSOBJS) $(LIBDIR)/entry.o $(LIBDIR)/entryother $(LIBDIR)/initcode kernel.ld $(LIBDIR)/fs.img
+	$(LD) $(LDFLAGS) -T kernel.ld -o $(LIBDIR)/kernelmemfs $(LIBDIR)/entry.o  $(MEMFSOBJS) -b binary $(LIBDIR)/initcode $(LIBDIR)/entryother $(LIBDIR)/fs.img
+	$(OBJDUMP) -S $(LIBDIR)/kernelmemfs > $(LIBDIR)/kernelmemfs.asm
+	$(OBJDUMP) -t $(LIBDIR)/kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(LIBDIR)/kernelmemfs.sym
 
-tags: $(OBJS) entryother.S _init
-	etags *.S *.c
+$(LIBDIR)/%.o : %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(LIBDIR)/%.o : %.S
+	$(CC) $(ASFLAGS) -c -o $@ $<
 
 vectors.S: vectors.pl
 	perl vectors.pl > vectors.S
 
 ULIB = ulib.o usys.o printf.o umalloc.o
+ULIBOBJS:=$(ULIB:%.o=$(LIBDIR)/%.o)
 
-_%: %.o $(ULIB)
+$(LIBDIR)/_%: $(LIBDIR)/%.o $(ULIBOBJS)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
-	$(OBJDUMP) -S $@ > $*.asm
-	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $*.sym
+	$(OBJDUMP) -S $@ > $(LIBDIR)/$*.asm
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(LIBDIR)/$*.sym
 
-_forktest: forktest.o $(ULIB)
+$(LIBDIR)/_forktest: $(LIBDIR)/forktest.o $(ULIBOBJS)
 	# forktest has less library code linked in - needs to be small
 	# in order to be able to max out the proc table.
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _forktest forktest.o ulib.o usys.o
-	$(OBJDUMP) -S _forktest > forktest.asm
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(LIBDIR)/_forktest $(LIBDIR)/forktest.o $(LIBDIR)/ulib.o $(LIBDIR)/usys.o
+	$(OBJDUMP) -S $(LIBDIR)/_forktest > $(LIBDIR)/forktest.asm
 
-mkfs: mkfs.c fs.h
-	gcc -Werror -Wall -o mkfs mkfs.c
+$(LIBDIR)/mkfs: mkfs.c fs.h
+	gcc -Werror -Wall -o $(LIBDIR)/mkfs mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.  More
 # details:
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
-.PRECIOUS: %.o
+.PRECIOUS: $(LIBDIR)/%.o
 
 UPROGS=\
 	_cat\
@@ -175,17 +184,17 @@ UPROGS=\
 	_wc\
 	_zombie\
 
-fs.img: mkfs README $(UPROGS)
-	./mkfs fs.img README $(UPROGS)
+USERPROGS:=$(UPROGS:_%=$(LIBDIR)/_%)
 
--include *.d
+$(BINDIR)/fs.img: $(LIBDIR)/mkfs README $(USERPROGS)
+	cp README $(LIBDIR)/README
+	cd $(LIBDIR); ./mkfs fs.img README $(UPROGS)
+	mv $(LIBDIR)/fs.img $(BINDIR)/fs.img
+
+-include $(LIBDIR)/*.d
 
 clean: 
-	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
-	*.o *.d *.asm *.sym vectors.S bootblock entryother \
-	initcode initcode.out kernel xv6.img fs.img kernelmemfs mkfs \
-	.gdbinit \
-	$(UPROGS)
+	rm -rf $(BINDIR)
 
 # make a printout
 FILES = $(shell grep -v '^\#' runoff.list)
@@ -199,7 +208,7 @@ print: xv6.pdf
 
 # run in emulators
 
-bochs : fs.img xv6.img
+bochs : $(BINDIR)/fs.img $(BINDIR)/xv6.img
 	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
 	bochs -q
 
@@ -212,25 +221,25 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 ifndef CPUS
 CPUS := 2
 endif
-QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
+QEMUOPTS = -drive file=$(BINDIR)/fs.img,index=1,media=disk,format=raw -drive file=$(BINDIR)/xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
 
-qemu: fs.img xv6.img
+qemu: $(BINDIR)/fs.img $(BINDIR)/xv6.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS)
 
-qemu-memfs: xv6memfs.img
+qemu-memfs: $(BINDIR)/xv6memfs.img
 	$(QEMU) -drive file=xv6memfs.img,index=0,media=disk,format=raw -smp $(CPUS) -m 256
 
-qemu-nox: fs.img xv6.img
+qemu-nox: $(BINDIR)/fs.img $(BINDIR)/xv6.img
 	$(QEMU) -nographic $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: fs.img xv6.img .gdbinit
+qemu-gdb: $(BINDIR)/fs.img $(BINDIR)/xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
 
-qemu-nox-gdb: fs.img xv6.img .gdbinit
+qemu-nox-gdb: $(BINDIR)/fs.img $(BINDIR)/xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 

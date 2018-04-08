@@ -1,3 +1,9 @@
+The lab branches in this fork contain modifications to xv6 as assigned
+by the course CS 153. We will attempt to comment all modified sections
+to mention CS 153. The master branch will remain as the original
+unmodified branch.
+
+
 xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
 Version 6 (v6).  xv6 loosely follows the structure and style of v6,
 but is implemented for a modern x86-based multiprocessor using ANSI C.
