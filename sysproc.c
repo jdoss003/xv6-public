@@ -21,9 +21,9 @@ sys_exit(int status)
 }
 
 int
-sys_wait(void)
+sys_wait(int* estatus)     // [CS 153] returns exits status of terminated process
 {
-  return wait();
+  return wait(estatus);
 }
 
 int

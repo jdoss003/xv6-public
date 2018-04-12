@@ -117,7 +117,7 @@ void            sched(void);
 void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);
 void            userinit(void);
-int             wait(void);
+int             wait(int*);       // [CS 153] returns exits status of terminated process
 void            wakeup(void*);
 void            yield(void);
 
