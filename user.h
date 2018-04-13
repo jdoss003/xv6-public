@@ -5,6 +5,7 @@ struct rtcdate;
 int fork(void);
 int exit(int) __attribute__((noreturn));
 int wait(int*);
+int waitpid(int, int*, int); // [CS 153] add waitpid sys call
 int pipe(int*);
 int write(int, void*, int);
 int read(int, void*, int);

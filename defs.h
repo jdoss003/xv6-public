@@ -118,6 +118,7 @@ void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);
 void            userinit(void);
 int             wait(int*);       // [CS 153] returns exits status of terminated process
+int             waitpid(int, int*, int); // [CS 153] add waitpid sys call
 void            wakeup(void*);
 void            yield(void);
 

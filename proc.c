@@ -321,6 +321,57 @@ wait(int* estatus)
   }
 }
 
+// [CS 153] add waitpid sys call
+int
+waitpid(int pid, int* status, int options)
+{
+  struct proc *p;
+  int found;
+  struct proc *curproc = myproc();
+
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    found = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pid != pid)
+        continue;
+      found = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+
+        //[CS153] Added for Lab1
+        if(status)
+        {
+          (*status) = p->estatus;
+        }
+
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+      break;
+    }
+
+    // No point waiting if we don't have any children.
+    if(!found || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.

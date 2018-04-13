@@ -101,7 +101,7 @@ extern int sys_sbrk(void);
 extern int sys_sleep(void);
 extern int sys_unlink(void);
 extern int sys_wait(void);     // [CS 153] returns exits status of terminated process
-//extern int sys_waitpid(void); // [CS 153] add waitpid sys call
+extern int sys_waitpid(void); // [CS 153] add waitpid sys call
 extern int sys_write(void);
 extern int sys_uptime(void);
 
@@ -127,6 +127,7 @@ static int (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_waitpid] sys_waitpid,
 };
 
 void
