@@ -86,7 +86,7 @@ extern int sys_chdir(void);
 extern int sys_close(void);
 extern int sys_dup(void);
 extern int sys_exec(void);
-extern int sys_exit(int);     // [CS 153] allow process to set exit status
+extern int sys_exit(void);     // [CS 153] allow process to set exit status
 extern int sys_fork(void);
 extern int sys_fstat(void);
 extern int sys_getpid(void);
@@ -100,11 +100,12 @@ extern int sys_read(void);
 extern int sys_sbrk(void);
 extern int sys_sleep(void);
 extern int sys_unlink(void);
-extern int sys_wait(int*);     // [CS 153] returns exits status of terminated process
+extern int sys_wait(void);     // [CS 153] returns exits status of terminated process
+//extern int sys_waitpid(void); // [CS 153] add waitpid sys call
 extern int sys_write(void);
 extern int sys_uptime(void);
 
-static int (*syscalls[])() = {
+static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
 [SYS_wait]    sys_wait,

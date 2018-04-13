@@ -14,15 +14,24 @@ sys_fork(void)
 }
 
 int
-sys_exit(int status)
+sys_exit(void)
 {
+  int status;
+
+  if (argint(0, &status) < 0)
+    return -1;
   exit(status);
   return 0;  // not reached
 }
 
 int
-sys_wait(int* estatus)     // [CS 153] returns exits status of terminated process
+sys_wait(void)     // [CS 153] returns exits status of terminated process
 {
+  int *estatus;
+
+  if (argptr(0, (void*)&estatus, sizeof(estatus)) < 0)
+    return -1;
+
   return wait(estatus);
 }
 

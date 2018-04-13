@@ -292,7 +292,7 @@ wait(int* estatus)
         pid = p->pid;
 
         //[CS153] Added for Lab1
-        if(estatus != 0)
+        if(estatus)
         {
           (*estatus) = p->estatus;
         }
