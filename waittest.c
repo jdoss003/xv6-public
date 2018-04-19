@@ -1,4 +1,4 @@
-
+#include "types.h"
 #include "user.h"
 
 char*argv[] = {"forktest", 0};
@@ -19,15 +19,19 @@ waittest(void)
 {
   int n, pid;
 
-  int waitid = fork();
+  printf(1, "####################################################\n");
+  printf(1, "#       Part1: testing wait and exit status        #\n");
+  printf(1, "####################################################\n");
+
+  pid = fork();
   int status;
 
-  if (waitid < 0)
+  if (pid < 0)
   {
     printf(1, "Fork error!\n");
     exit(1);
   }
-  else if (waitid == 0)
+  else if (pid == 0)
   {
     int fact = factorial(5);
     printf(1, "Child id %d - !10 = %d\n", getpid(), fact);
@@ -44,7 +48,7 @@ waittest(void)
     pid = fork();
     if (pid < 0)
     {
-      printf(1, "error!\n");
+      printf(1, "Fork error!\n");
       exit(1);
     }
     else if (pid == 0)
@@ -54,22 +58,50 @@ waittest(void)
     }
     else
     {
-      wait(&status);
-      printf(1, "Parent - done waiting for subprocess %d, exit status %d\n", getpid(), status);
+      pid = wait(&status);
+      printf(1, "Parent - done waiting for subprocess %d, exit status %d\n", pid, status);
     }
   }
 
-  if (waitpid(waitid, &status, 0) < 0)
-  {
-    return -1;
-  }
-
-  printf(1, "Parent - done waiting for subprocess %d, exit status %d\n", waitid, status);
+  pid = wait(&status);
+  printf(1, "Parent - done waiting for subprocess %d, exit status %d\n", pid, status);
   if (status != 0)
   {
-    printf(1, "incorrect exit status %d!\n", status);
+    printf(1, "Incorrect exit status %d for process %d!\n", status, pid);
   }
-  return status;
+
+  printf(1, "\n\n");
+  printf(1, "####################################################\n");
+  printf(1, "#              Part2: testing waitpid              #\n");
+  printf(1, "####################################################\n");
+
+  int pids[] = {0, 0, 0, 0};
+  int waitorder[] = {3, 1, 2, 0};
+
+  for (int i = 0; i < 4; ++i)
+  {
+    pids[i] = fork();
+
+    if (pids[i] == 0)
+    {
+      printf(1, "Child id %d - will exit with %d\n", getpid(), i);
+      exit(i);
+    }
+  }
+
+  for (int i = 0; i < 4; ++i)
+  {
+    sleep(5);
+    printf(1, "Parent - waiting for process id %d\n", pids[waitorder[i]]);
+    pid = waitpid(pids[waitorder[i]], &status, 0);
+    if (pid != -1)
+      printf(1, "Parent - process id %d exited with status %d\n", pid, status);
+    else
+      printf(1, "Parent - no process found or already exited\n", pid, status);
+
+  }
+
+  return 0;
 }
 
 int
