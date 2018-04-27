@@ -43,7 +43,7 @@ waittest(void)
     }
   }
 
-  for (n = 0; n < 2; n++)
+  for(n = 0; n < 2; n++)
   {
     pid = fork();
     if (pid < 0)
@@ -78,7 +78,8 @@ waittest(void)
   int pids[] = {0, 0, 0, 0};
   int waitorder[] = {3, 1, 2, 0};
 
-  for (int i = 0; i < 4; ++i)
+  int i;
+  for(i = 0; i < 4; ++i)
   {
     pids[i] = fork();
 
@@ -89,15 +90,30 @@ waittest(void)
     }
   }
 
-  for (int i = 0; i < 4; ++i)
+  printf(1, "Parent - trying to wait on itself\n");
+  pid = waitpid(getpid(), NULL, 0);
+  if (pid != -1)
+  {
+    printf(1, "Parent - process id %d exited with status %d\n", pid, status);
+  }
+  else
+  {
+    printf(1, "Parent - no process found or already exited\n", pid, status);
+  }
+
+  for(i = 0; i < 4; ++i)
   {
     sleep(5);
     printf(1, "Parent - waiting for process id %d\n", pids[waitorder[i]]);
     pid = waitpid(pids[waitorder[i]], &status, 0);
     if (pid != -1)
+    {
       printf(1, "Parent - process id %d exited with status %d\n", pid, status);
+    }
     else
+    {
       printf(1, "Parent - no process found or already exited\n", pid, status);
+    }
 
   }
 

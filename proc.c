@@ -329,9 +329,12 @@ waitpid(int pid, int* status, int options)
   int found;
   struct proc *curproc = myproc();
 
+  if (curproc->pid == pid)
+    return -1;
+
   acquire(&ptable.lock);
   for(;;){
-    // Scan through table looking for exited children.
+    // Scan through table looking for the process with the given ID.
     found = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->pid != pid)
@@ -361,13 +364,13 @@ waitpid(int pid, int* status, int options)
       break;
     }
 
-    // No point waiting if we don't have any children.
+    // No point waiting if the process we want does not exist.
     if(!found || curproc->killed){
       release(&ptable.lock);
       return -1;
     }
 
-    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    // Wait for process to exit.  (See wakeup1 call in proc_exit.)
     sleep(p->parent, &ptable.lock);  //DOC: wait-sleep
   }
 }
