@@ -10,6 +10,8 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  struct pqueue qready[NPQUEUE];        // [CS 153] process queue
+  struct queuenode pnodes[NPROC];
 } ptable;
 
 static struct proc *initproc;
@@ -117,6 +119,23 @@ found:
   return p;
 }
 
+// [CS 153] get an unused queue node and return it
+struct queuenode*
+getNode(struct proc *proc)
+{
+  struct queuenode *n;
+
+  for(n = ptable.pnodes; n < &ptable.pnodes[NPROC]; ++n)
+  {
+    if (n->p == NULL)
+    {
+      n->p = proc;
+      return n;
+    }
+  }
+  return NULL;
+}
+
 //PAGEBREAK: 32
 // Set up first user process.
 void
@@ -151,6 +170,8 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+
+  penqueue(ptable.qready, getNode(p));          // [CS 153] process queue
 
   release(&ptable.lock);
 }
@@ -217,6 +238,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  penqueue(ptable.qready, getNode(np));     // [CS 153] process queue
 
   release(&ptable.lock);
 
@@ -248,7 +270,7 @@ exit(int status)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
-  curproc->estatus = status;
+  curproc->estatus = status;        // [CS 153] add exit status
 
   acquire(&ptable.lock);
 
@@ -387,6 +409,7 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct pqueue *q;
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -394,15 +417,22 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+
+    // [CS 153] process queue
+    for(q = ptable.qready; q < &ptable.qready[NPQUEUE]; ++q)
+    {
+      if (pqempty(q))
         continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
+      p = pdequeue(q);
+
+      if (p == NULL)
+        panic("null proc in schd");
+
+      if (p->state != RUNNABLE)
+        continue;
+
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -412,10 +442,12 @@ scheduler(void)
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
+      if (p->state == RUNNABLE)
+        penqueue(&ptable.qready[p->priority], getNode(p));
       c->proc = 0;
     }
-    release(&ptable.lock);
 
+    release(&ptable.lock);
   }
 }
 
@@ -451,6 +483,7 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+  penqueue(ptable.qready, getNode(myproc()));   // [CS 153] process queue
   sched();
   release(&ptable.lock);
 }
@@ -524,8 +557,10 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+      penqueue(ptable.qready, getNode(p));      // [CS 153] process queue
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -550,8 +585,10 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING){
         p->state = RUNNABLE;
+        penqueue(ptable.qready, getNode(p));
+      }
       release(&ptable.lock);
       return 0;
     }
@@ -561,6 +598,55 @@ kill(int pid)
 }
 
 //PAGEBREAK: 36
+// [CS 153] process queue methods
+int
+pqempty(struct pqueue *q)
+{
+    return (q->head == NULL);
+}
+
+struct proc*
+pdequeue(struct pqueue *q)
+{
+    if (q->head)
+    {
+        struct proc *p = q->head->p;
+        q->head->p = NULL;
+        q->head = q->head->next;
+
+        if (q->head)
+            q->head->prev = NULL;
+        else
+        {
+            q->head = NULL;
+            q->tail = NULL;
+        }
+
+        return p;
+    }
+
+    return NULL;
+}
+
+void
+penqueue(struct pqueue *q, struct queuenode *n)
+{
+    if (q->tail)
+    {
+        q->tail->next = n;
+        n->prev = q->tail;
+        q->tail = n;
+        n->next = NULL;
+    }
+    else
+    {
+        q->head = n;
+        q->tail = n;
+        n->next = NULL;
+        n->prev = NULL;
+    }
+}
+
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.

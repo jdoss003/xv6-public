@@ -3,7 +3,9 @@ struct context;
 struct file;
 struct inode;
 struct pipe;
+struct pqueue;      // [CS 153] process queue for scheduler
 struct proc;
+struct queuenode;   // [CS 153] process queue node
 struct rtcdate;
 struct spinlock;
 struct sleeplock;
@@ -121,6 +123,11 @@ int             wait(int*);       // [CS 153] returns exits status of terminated
 int             waitpid(int, int*, int); // [CS 153] add waitpid sys call
 void            wakeup(void*);
 void            yield(void);
+
+// [CS 153] process queue methods
+int             pqempty(struct pqueue *q);
+struct proc*    pdequeue(struct pqueue *q);
+void            penqueue(struct pqueue *q, struct queuenode *n);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
