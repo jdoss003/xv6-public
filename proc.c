@@ -682,3 +682,20 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+int
+setPriority(int priority)
+{
+  if(priority >= 0 && priority < NPQUEUE) {
+    acquire(&ptable.lock);
+    struct proc *p = myproc();
+    p->priority = priority;
+    p->state = RUNNABLE;
+    penqueue(ptable.qready, getNode(p));
+    sched();
+    release(&ptable.lock);
+    return 0;
+  }
+  else
+    return -1;
+}

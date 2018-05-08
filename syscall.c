@@ -104,6 +104,8 @@ extern int sys_wait(void);     // [CS 153] returns exits status of terminated pr
 extern int sys_waitpid(void); // [CS 153] add waitpid sys call
 extern int sys_write(void);
 extern int sys_uptime(void);
+extern int sys_getPriority(void);
+extern int sys_setPriority(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -128,6 +130,8 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_waitpid] sys_waitpid,
+[SYS_getPriority] sys_getPriority,
+[SYS_setPriority] sys_setPriority,
 };
 
 void

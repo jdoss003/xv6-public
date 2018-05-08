@@ -24,6 +24,10 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int getPriority(void); // [CS 153] add get priority sys call
+int setPriority(int); // [CS 153] add set priority sys call
+
+
 
 // ulib.c
 int stat(char*, struct stat*);

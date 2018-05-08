@@ -123,6 +123,7 @@ int             wait(int*);       // [CS 153] returns exits status of terminated
 int             waitpid(int, int*, int); // [CS 153] add waitpid sys call
 void            wakeup(void*);
 void            yield(void);
+int           setPriority(int); // [CS 153] add set priority sys call
 
 // [CS 153] process queue methods
 int             pqempty(struct pqueue *q);
