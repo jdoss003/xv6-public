@@ -43,6 +43,8 @@ waittest(void)
     }
   }
 
+  wait(NULL);
+
   for(n = 0; n < 2; n++)
   {
     pid = fork();
@@ -78,6 +80,9 @@ waittest(void)
   int pids[] = {0, 0, 0, 0};
   int waitorder[] = {3, 1, 2, 0};
 
+  setPriority(0);
+  printStats();
+
   int i;
   for(i = 0; i < 4; ++i)
   {
@@ -85,7 +90,10 @@ waittest(void)
 
     if (pids[i] == 0)
     {
+      setPriority(getPriority() - i);
+      sleep(10);
       printf(1, "Child id %d - will exit with %d\n", getpid(), i);
+      printStats();
       exit(i);
     }
   }
@@ -114,7 +122,6 @@ waittest(void)
     {
       printf(1, "Parent - no process found or already exited\n", pid, status);
     }
-
   }
 
   return 0;

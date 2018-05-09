@@ -127,3 +127,9 @@ sys_setPriority(void)
     return -1;
   return setPriority(priority);
 }
+
+int
+sys_printStats(void)
+{
+  return printStats();
+}

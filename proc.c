@@ -77,6 +77,7 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
+  uint xticks;
 
   acquire(&ptable.lock);
 
@@ -92,6 +93,7 @@ found:
   p->pid = nextpid++;
   // [CS 153] Initialize exit status
   p->estatus = -1;
+  p->priority = NPQUEUE / 2;
 
   release(&ptable.lock);
 
@@ -115,6 +117,14 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+
+  p->lasttime = xticks;
+  p->rtime = 0;
+  p->wtime = 0;
 
   return p;
 }
@@ -143,6 +153,7 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
+  uint xticks;
 
   p = allocproc();
   
@@ -163,6 +174,14 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+
+  p->lasttime = xticks;
+  p->rtime = 0;
+  p->wtime = 0;
+
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
@@ -171,7 +190,7 @@ userinit(void)
 
   p->state = RUNNABLE;
 
-  penqueue(ptable.qready, getNode(p));          // [CS 153] process queue
+  penqueue(&ptable.qready[p->priority], getNode(p));          // [CS 153] process queue
 
   release(&ptable.lock);
 }
@@ -206,6 +225,7 @@ fork(void)
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
+  uint xticks;
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -233,12 +253,20 @@ fork(void)
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+
+  np->lasttime = xticks;
+  np->rtime = 0;
+  np->wtime = 0;
+
   pid = np->pid;
 
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
-  penqueue(ptable.qready, getNode(np));     // [CS 153] process queue
+  penqueue(&ptable.qready[np->priority], getNode(np));     // [CS 153] process queue
 
   release(&ptable.lock);
 
@@ -254,6 +282,7 @@ exit(int status)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
+  uint xticks;
 
   if(curproc == initproc)
     panic("init exiting");
@@ -271,6 +300,12 @@ exit(int status)
   end_op();
   curproc->cwd = 0;
   curproc->estatus = status;        // [CS 153] add exit status
+
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+
+  curproc->rtime += xticks - curproc->lasttime;
 
   acquire(&ptable.lock);
 
@@ -411,12 +446,16 @@ scheduler(void)
   struct proc *p;
   struct pqueue *q;
   struct cpu *c = mycpu();
+  uint xticks;
   c->proc = 0;
   
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
+    acquire(&tickslock);
+    xticks = ticks;
+    release(&tickslock);
     acquire(&ptable.lock);
 
     // [CS 153] process queue
@@ -436,6 +475,8 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      p->wtime += xticks - p->lasttime;
+      p->lasttime = xticks;
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
@@ -445,6 +486,7 @@ scheduler(void)
       if (p->state == RUNNABLE)
         penqueue(&ptable.qready[p->priority], getNode(p));
       c->proc = 0;
+      break;
     }
 
     release(&ptable.lock);
@@ -481,9 +523,18 @@ sched(void)
 void
 yield(void)
 {
+  struct proc *p = myproc();
+  uint xticks;
+
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+
   acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
-  penqueue(ptable.qready, getNode(myproc()));   // [CS 153] process queue
+  p->rtime += xticks - p->lasttime;
+  p->lasttime = xticks;
+  p->state = RUNNABLE;
+  penqueue(&ptable.qready[p->priority], getNode(p));   // [CS 153] process queue
   sched();
   release(&ptable.lock);
 }
@@ -515,12 +566,23 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
+  uint xticks;
   
   if(p == 0)
     panic("sleep");
 
   if(lk == 0)
     panic("sleep without lk");
+
+  if (lk != &tickslock){
+      acquire(&tickslock);
+  }
+
+  xticks = ticks;
+
+  if (lk != &tickslock){
+      release(&tickslock);
+  }
 
   // Must acquire ptable.lock in order to
   // change p->state and then call sched.
@@ -532,6 +594,10 @@ sleep(void *chan, struct spinlock *lk)
     acquire(&ptable.lock);  //DOC: sleeplock1
     release(lk);
   }
+
+  p->rtime += xticks - p->lasttime;
+  p->lasttime = xticks;
+
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
@@ -559,7 +625,7 @@ wakeup1(void *chan)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
-      penqueue(ptable.qready, getNode(p));      // [CS 153] process queue
+      penqueue(&ptable.qready[p->priority], getNode(p));      // [CS 153] process queue
     }
 }
 
@@ -587,7 +653,7 @@ kill(int pid)
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING){
         p->state = RUNNABLE;
-        penqueue(ptable.qready, getNode(p));
+        penqueue(&ptable.qready[p->priority], getNode(p));
       }
       release(&ptable.lock);
       return 0;
@@ -608,43 +674,40 @@ pqempty(struct pqueue *q)
 struct proc*
 pdequeue(struct pqueue *q)
 {
+  if (q->head){
+    struct proc *p = q->head->p;
+    q->head->p = NULL;
+    q->head = q->head->next;
+
     if (q->head)
+        q->head->prev = NULL;
+    else
     {
-        struct proc *p = q->head->p;
-        q->head->p = NULL;
-        q->head = q->head->next;
-
-        if (q->head)
-            q->head->prev = NULL;
-        else
-        {
-            q->head = NULL;
-            q->tail = NULL;
-        }
-
-        return p;
+        q->head = NULL;
+        q->tail = NULL;
     }
 
-    return NULL;
+    return p;
+  }
+
+  return NULL;
 }
 
 void
 penqueue(struct pqueue *q, struct queuenode *n)
 {
-    if (q->tail)
-    {
-        q->tail->next = n;
-        n->prev = q->tail;
-        q->tail = n;
-        n->next = NULL;
-    }
-    else
-    {
-        q->head = n;
-        q->tail = n;
-        n->next = NULL;
-        n->prev = NULL;
-    }
+  if (q->tail){
+    q->tail->next = n;
+    n->prev = q->tail;
+    q->tail = n;
+    n->next = NULL;
+  }
+  else{
+    q->head = n;
+    q->tail = n;
+    n->next = NULL;
+    n->prev = NULL;
+  }
 }
 
 // Print a process listing to console.  For debugging.
@@ -666,6 +729,8 @@ procdump(void)
   char *state;
   uint pc[10];
 
+  cprintf("\n");
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -673,7 +738,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("%d %s %s %d %d %d", p->pid, state, p->name, p->priority, p->rtime, p->wtime);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -681,21 +746,45 @@ procdump(void)
     }
     cprintf("\n");
   }
+
+  cprintf("$ ");
 }
 
 int
 setPriority(int priority)
 {
-  if(priority >= 0 && priority < NPQUEUE) {
+  struct proc *p = myproc();
+  uint xticks;
+
+  if(priority >= 0 && priority < NPQUEUE){
+
+    acquire(&tickslock);
+    xticks = ticks;
+    release(&tickslock);
+
     acquire(&ptable.lock);
-    struct proc *p = myproc();
     p->priority = priority;
     p->state = RUNNABLE;
-    penqueue(ptable.qready, getNode(p));
+    p->rtime += xticks - p->lasttime;
+    p->lasttime = xticks;
+    penqueue(&ptable.qready[p->priority], getNode(p));
     sched();
     release(&ptable.lock);
     return 0;
   }
   else
     return -1;
+}
+
+int
+printStats(void)
+{
+  struct proc *p = myproc();
+
+  acquire(&ptable.lock);
+
+  cprintf("PID: %d - NAME: %s - PRIORITY: %d - TOTAL TIME: %d - WAIT TIME: %d\n", p->pid, p->name, p->priority, p->rtime + p->wtime, p->wtime);
+
+  release(&ptable.lock);
+  return 0;
 }

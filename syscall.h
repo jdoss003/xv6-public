@@ -23,3 +23,4 @@
 #define SYS_waitpid 22 // [CS 153] add waitpid sys call
 #define SYS_getPriority  23 // [CS 153] add get priority sys call
 #define SYS_setPriority  24 // [CS 153] add set priority sys call
+#define SYS_printStats   25 // [CS 153] print stats for current process
