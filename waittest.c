@@ -78,7 +78,7 @@ waittest(void)
   printf(1, "####################################################\n");
 
   int pids[] = {0, 0, 0, 0};
-  int waitorder[] = {3, 1, 2, 0};
+  int waitorder[] = {1, 0, 2, 3};
 
   setPriority(0);
   printStats();
@@ -90,8 +90,7 @@ waittest(void)
 
     if (pids[i] == 0)
     {
-      setPriority(getPriority() - i);
-      sleep(10);
+      setPriority(getPriority() + i);
       printf(1, "Child id %d - will exit with %d\n", getpid(), i);
       printStats();
       exit(i);
@@ -111,7 +110,6 @@ waittest(void)
 
   for(i = 0; i < 4; ++i)
   {
-    sleep(5);
     printf(1, "Parent - waiting for process id %d\n", pids[waitorder[i]]);
     pid = waitpid(pids[waitorder[i]], &status, 0);
     if (pid != -1)
