@@ -15,6 +15,7 @@ OBJS = \
 	picirq.o\
 	pipe.o\
 	proc.o\
+	shm.o\
 	sleeplock.o\
 	spinlock.o\
 	string.o\
@@ -144,7 +145,7 @@ $(LIBDIR)/%.o : %.S
 vectors.S: vectors.pl
 	perl vectors.pl > vectors.S
 
-ULIB = ulib.o usys.o printf.o umalloc.o
+ULIB = ulib.o usys.o printf.o umalloc.o uspinlock.o
 ULIBOBJS:=$(ULIB:%.o=$(LIBDIR)/%.o)
 
 $(LIBDIR)/_%: $(LIBDIR)/%.o $(ULIBOBJS)
@@ -177,8 +178,10 @@ UPROGS=\
 	_ln\
 	_ls\
 	_mkdir\
+	_null\
 	_rm\
 	_sh\
+	_shm_cnt\
 	_stressfs\
 	_usertests\
 	_wc\
@@ -219,7 +222,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 2
+CPUS := 1
 endif
 QEMUOPTS = -drive file=$(BINDIR)/fs.img,index=1,media=disk,format=raw -drive file=$(BINDIR)/xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
 
