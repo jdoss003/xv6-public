@@ -138,6 +138,15 @@ rcr2(void)
   return val;
 }
 
+// [CS 153]
+static inline uint
+getsp(void)
+{
+  register uint sp asm("sp");
+  asm volatile("" : "=r" (sp));
+  return sp;
+}
+
 static inline void
 lcr3(uint val)
 {

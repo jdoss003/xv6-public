@@ -175,12 +175,14 @@ void            seginit(void);
 void            kvmalloc(void);
 pde_t*          setupkvm(void);
 char*           uva2ka(pde_t*, char*);
-int             allocuvm(pde_t*, uint, uint);
-int             deallocuvm(pde_t*, uint, uint);
+int             allocuvmbrk(pde_t*, uint, uint);    // [CS 153]
+int             deallocuvmbrk(pde_t*, uint, uint);  // [CS 153]
+int             allocuvmst(pde_t*, uint, uint);     // [CS 153]
+int             deallocuvmst(pde_t*, uint, uint);   // [CS 153]
 void            freevm(pde_t*);
 void            inituvm(pde_t*, char*, uint);
 int             loaduvm(pde_t*, char*, struct inode*, uint, uint);
-pde_t*          copyuvm(pde_t*, uint);
+pde_t*          copyuvm(pde_t*, uint, uint, uint);  // [CS 153]
 void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
