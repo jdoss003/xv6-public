@@ -383,7 +383,7 @@ copyuvm(pde_t *pgdir, uint brk, uint ss, uint sz)
 {
   pde_t *d;
   pte_t *pte;
-  uint pa, i, j, flags;
+  uint pa, i, flags;
   char *mem;
 
   if((d = setupkvm()) == 0)
@@ -402,10 +402,9 @@ copyuvm(pde_t *pgdir, uint brk, uint ss, uint sz)
       goto bad;
   }
 
-  i = PGROUNDDOWN(KERNBASE - (sz - ss));
-  j = i;
-  for(; i < KERNBASE; i += PGSIZE){
-    if((pte = walkpgdir(pgdir, (void *) ss + (i - j), 0)) == 0)
+  i = PGROUNDDOWN(ss);
+  for(; i < sz; i += PGSIZE){
+    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");

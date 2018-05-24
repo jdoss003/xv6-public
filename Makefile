@@ -186,6 +186,7 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
+	_lab3_test\
 
 USERPROGS:=$(UPROGS:_%=$(LIBDIR)/_%)
 

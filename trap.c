@@ -77,11 +77,18 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
-  case T_PGFLT: // TODO [CS 153]
-    if (rcr2() == getsp())
+  case T_PGFLT:
+    if (PGROUNDUP(rcr2()) == myproc()->ss && PGROUNDDOWN(rcr2()) > myproc()->brk)
     {
-      cprintf("Stack PF!\n");
-      break;
+      struct proc *curproc = myproc();
+      uint ss;
+
+      if ((ss = allocuvmst(curproc->pgdir, curproc->ss, PGROUNDDOWN(rcr2()))) != 0)
+      {
+        curproc->ss = ss;
+        cprintf("Allocated more memory to the stack\n");
+        return;
+      }
     }
   //PAGEBREAK: 13
   default:
