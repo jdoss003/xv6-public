@@ -187,13 +187,15 @@ int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 
 //made mappages visible (and removed static) to facilitate implementing shm
+pte_t*
+walkpgdir(pde_t *pgdir, const void *va, int alloc);
 int
 mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
 
 //shm.c
 void shminit(void);
-int shm_open(int id, char **pointer);
-int shm_close(int id);
+int shm_open(uint id, char **pointer);
+int shm_close(uint id);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
